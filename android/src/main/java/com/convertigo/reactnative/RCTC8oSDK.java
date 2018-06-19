@@ -5,7 +5,6 @@ import android.widget.Toast;
 
 import com.convertigo.clientsdk.*;
 
-
 import com.facebook.react.bridge.*;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.*;
@@ -52,9 +51,12 @@ public class RCTC8oSDK extends ReactContextBaseJavaModule {
         settings.setTrustAllCertificates((boolean)JsSettings.toHashMap().get("_trustAllCertificates"));
       }
       if(JsSettings.toHashMap().get("_cookies") != null){
-          Object key = ((HashMap)JsSettings.toHashMap().get("_cookies")).keySet().toArray()[0];
-          Object value = ((HashMap)JsSettings.toHashMap().get("_cookies")).values().toArray()[0];
-          settings.addCookie(key.toString(), value.toString());
+          Object[] keys = ((HashMap)JsSettings.toHashMap().get("_cookies")).keySet().toArray();
+          if(keys.length > 0) {
+              Object key = keys[0];
+              Object value = ((HashMap)JsSettings.toHashMap().get("_cookies")).values().toArray()[0];
+              settings.addCookie(key.toString(), value.toString());
+          }
       }
       if(JsSettings.toHashMap().get("_logRemote") != null){
         settings.setLogRemote((boolean)JsSettings.toHashMap().get("_logRemote"));
@@ -91,10 +93,7 @@ public class RCTC8oSDK extends ReactContextBaseJavaModule {
       }
 
       try {
-          c8o = new C8o(this.context,
-                  endPoint,
-                  settings
-          );
+          c8o = new C8o(this.context, endPoint, settings);
           promise.resolve(true);
       } catch (Exception e) {
           promise.reject("C8oReactError",e.getMessage());
@@ -103,43 +102,46 @@ public class RCTC8oSDK extends ReactContextBaseJavaModule {
 
   @ReactMethod
   public void callJson(String requestable, final ReadableMap JsObject, final Promise promise) throws JSONException {
-      final Promise p = promise;
       final ReactApplicationContext ctx = this.context;
-      c8o.callJson(requestable, JsonConvert.reactToJSON(JsObject))
-          .thenUI(new C8oOnResponse<JSONObject>() {
-              @Override
-              public C8oPromise<JSONObject> run(JSONObject jObject, Map<String, Object> parameters) throws Throwable {
-                  // the jObject is available, the current code is executed in an another working thread
-                  p.resolve(JsonConvert.jsonToReact(jObject));
-                  return null;
-              }
-          })
-          .progress(new C8oOnProgress() {
-              @Override
-              public void run(C8oProgress c8oProgress) {
-                  JSONObject Jprogress = new JSONObject();
-                  try {
-                      Jprogress.put("continuous", c8oProgress.isContinuous());
-                      Jprogress.put("finished", c8oProgress.isFinished());
-                      Jprogress.put("pull", c8oProgress.isPull());
-                      Jprogress.put("current", c8oProgress.getCurrent());
-                      Jprogress.put("total", c8oProgress.getTotal());
-                      Jprogress.put("status", c8oProgress.getStatus());
-                      Jprogress.put("taskInfo", c8oProgress.getTaskInfo());
-                      Jprogress.put("raw", c8oProgress.getRaw());
+      try {
+          c8o.callJson(requestable, JsonConvert.reactToJSON(JsObject))
+                  .thenUI(new C8oOnResponse<JSONObject>() {
+                      @Override
+                      public C8oPromise<JSONObject> run(JSONObject jObject, Map<String, Object> parameters) throws Throwable {
+                          // the jObject is available, the current code is executed in an another working thread
+                          promise.resolve(JsonConvert.jsonToReact(jObject));
+                          return null;
+                      }
+                  })
+                  .progress(new C8oOnProgress() {
+                      @Override
+                      public void run(C8oProgress c8oProgress) {
+                          JSONObject Jprogress = new JSONObject();
+                          try {
+                              Jprogress.put("continuous", c8oProgress.isContinuous());
+                              Jprogress.put("finished", c8oProgress.isFinished());
+                              Jprogress.put("pull", c8oProgress.isPull());
+                              Jprogress.put("current", c8oProgress.getCurrent());
+                              Jprogress.put("total", c8oProgress.getTotal());
+                              Jprogress.put("status", c8oProgress.getStatus());
+                              Jprogress.put("taskInfo", c8oProgress.getTaskInfo());
+                              Jprogress.put("raw", c8oProgress.getRaw());
 
-                  ctx.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-                     .emit("progress", JsonConvert.jsonToReact(Jprogress));
-                  } catch (JSONException e) {
-                      e.printStackTrace();
-                  }
-              }
-          })
-          .failUI(new C8oOnFail() {
-              @Override
-              public void run(Throwable throwable, Map<String, Object> parameters) {
-                  p.reject("C8oReactError", throwable);
-              }
-          });
+                              ctx.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                                      .emit("progress", JsonConvert.jsonToReact(Jprogress));
+                          } catch (JSONException e) {
+                              e.printStackTrace();
+                          }
+                      }
+                  })
+                  .failUI(new C8oOnFail() {
+                      @Override
+                      public void run(Throwable throwable, Map<String, Object> parameters) {
+                          promise.reject("C8oReactError", throwable);
+                      }
+                  });
+      } catch (Error error) {
+          promise.reject("C8oReactError", error.getMessage());
+      }
   }
 }
